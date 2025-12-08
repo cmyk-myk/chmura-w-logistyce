@@ -10,29 +10,49 @@ Original file is located at
 import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import numpy as np
+import random
 
 # --- Konfiguracja strony Streamlit ---
-st.set_page_config(page_title="Mikołaj w Streamlit", page_icon="🎅")
+st.set_page_config(page_title="Interaktywny Mikołaj", page_icon="🎅", layout="centered")
 
-st.title("🎅 Ho Ho Ho! Mikołaj wygenerowany w Pythonie")
-st.markdown("Ten rysunek został stworzony w 100% przy użyciu kodu i biblioteki `matplotlib`.")
+st.title("🎅 Interaktywny Mikołaj w Streamlit")
+st.markdown("""
+Poniżej znajduje się wygenerowany geometrycznie Mikołaj. 
+**Użyj panelu bocznego (po lewej)**, aby dodać śnieg lub prezenty!
+""")
 
-# --- Opcjonalnie: Interaktywność (np. zmiana koloru tła w pasku bocznym) ---
-bg_color = st.sidebar.color_picker("Wybierz kolor tła wykresu", "#FFFFFF")
+# --- PANEL BOCZNY (Kontrolki) ---
+st.sidebar.header("Ustawienia Sceny")
 
-# --- Konfiguracja płótna Matplotlib ---
-# Tworzymy figurę
+# 1. Tło
+bg_color = st.sidebar.color_picker("Kolor nieba", "#1a2c5b") # Domyślnie ciemny granat
+
+# 2. Śnieg
+snow_count = st.sidebar.slider("Ilość płatków śniegu ❄️", 0, 300, 50)
+
+# 3. Prezenty
+gift_count = st.sidebar.slider("Ilość prezentów 🎁", 0, 10, 3)
+
+
+# --- RYSOWANIE ---
+
+# Ustawiamy 'seed' dla liczb losowych, żeby prezenty nie skakały po ekranie
+# przy zmianie np. koloru tła.
+np.random.seed(42)
+
+# Konfiguracja płótna
 fig, ax = plt.subplots(figsize=(6, 10))
-fig.patch.set_facecolor(bg_color) # Ustawienie koloru tła figury
-ax.set_facecolor(bg_color)        # Ustawienie koloru tła osi
+fig.patch.set_facecolor(bg_color)
+ax.set_facecolor(bg_color)
 
-# Ustawiamy zakresy osi
+# Zakresy
 ax.set_xlim(0, 100)
 ax.set_ylim(-50, 130)
 ax.set_aspect('equal')
 ax.axis('off')
 
-# --- Definiowanie kolorów ---
+# Stałe kolory Mikołaja
 SKIN_COLOR = '#FFDFC4'
 BEARD_COLOR = 'white'
 HAT_COLOR = 'crimson'
@@ -41,9 +61,51 @@ BELT_COLOR = 'black'
 BUCKLE_COLOR = 'gold'
 BOOT_COLOR = 'black'
 
-# --- RYSOWANIE ELEMENTÓW (Twoja logika rysowania) ---
 
-# --- WARSTWA -2: NOGI I RĘCE ---
+# --- FUNKCJE POMOCNICZE ---
+
+def draw_gift(ax, x, y, width=12, height=12):
+    """Rysuje pojedynczy prezent w losowym kolorze."""
+    colors = ['#2ecc71', '#3498db', '#f1c40f', '#9b59b6', '#e67e22']
+    box_color = np.random.choice(colors)
+    ribbon_color = 'white'
+    
+    # Pudełko
+    box = patches.Rectangle((x, y), width, height, color=box_color, zorder=0.5)
+    ax.add_patch(box)
+    
+    # Wstążka pionowa
+    ribbon_v = patches.Rectangle((x + width/2 - 1, y), 2, height, color=ribbon_color, zorder=0.6)
+    ax.add_patch(ribbon_v)
+    
+    # Wstążka pozioma
+    ribbon_h = patches.Rectangle((x, y + height/2 - 1), width, 2, color=ribbon_color, zorder=0.6)
+    ax.add_patch(ribbon_h)
+
+def draw_snow(ax, count):
+    """Rysuje padający śnieg."""
+    if count > 0:
+        x_snow = np.random.uniform(0, 100, count)
+        y_snow = np.random.uniform(-50, 130, count)
+        sizes = np.random.uniform(0.5, 3.0, count) # Różne wielkości płatków
+        
+        # Rysujemy każdy płatek
+        for x, y, s in zip(x_snow, y_snow, sizes):
+            flake = patches.Circle((x, y), s, color='white', alpha=0.8, zorder=20) # zorder=20 -> na samym wierzchu
+            ax.add_patch(flake)
+
+# --- RYSOWANIE PREZENTÓW (Dynamiczne) ---
+# Rozmieszczamy prezenty na dole (y od -45 do -20)
+if gift_count > 0:
+    for _ in range(gift_count):
+        # Losowa pozycja X (z marginesem) i Y (na ziemi)
+        g_x = np.random.uniform(5, 85)
+        g_y = np.random.uniform(-45, -30)
+        draw_gift(ax, g_x, g_y)
+
+# --- RYSOWANIE MIKOŁAJA (Stałe elementy) ---
+
+# Nogi i ręce (Warstwa -2)
 leg_left = patches.Rectangle((38, -30), 10, 30, color=HAT_COLOR, zorder=-2)
 leg_right = patches.Rectangle((52, -30), 10, 30, color=HAT_COLOR, zorder=-2)
 ax.add_patch(leg_left)
@@ -59,13 +121,13 @@ mitten_right = patches.Circle((88, 18), 6, color=BOOT_COLOR, zorder=-2)
 ax.add_patch(mitten_left)
 ax.add_patch(mitten_right)
 
-# --- WARSTWA -1: BUTY ---
+# Buty (Warstwa -1)
 boot_left = patches.FancyBboxPatch((36, -45), 14, 15, boxstyle="round,pad=0.1", color=BOOT_COLOR, zorder=-1)
 boot_right = patches.FancyBboxPatch((50, -45), 14, 15, boxstyle="round,pad=0.1", color=BOOT_COLOR, zorder=-1)
 ax.add_patch(boot_left)
 ax.add_patch(boot_right)
 
-# --- WARSTWA 0: TUŁÓW I PAS ---
+# Tułów i pas (Warstwa 0)
 body = patches.Ellipse((50, 15), 70, 65, color=HAT_COLOR, zorder=0)
 ax.add_patch(body)
 
@@ -77,7 +139,7 @@ buckle_inner = patches.Rectangle((48, 13), 4, 6, color=BELT_COLOR, zorder=0.3)
 ax.add_patch(buckle_outer)
 ax.add_patch(buckle_inner)
 
-# --- WARSTWA 1-6: GŁOWA ---
+# Głowa i Czapka (Warstwy 1-6)
 beard = patches.Ellipse((50, 50), 50, 60, angle=0, color=BEARD_COLOR, zorder=1)
 ax.add_patch(beard)
 
@@ -105,6 +167,9 @@ ax.add_patch(nose)
 smile = patches.Wedge((50, 63), 10, 210, 330, width=1, color='black', alpha=0.5, zorder=5)
 ax.add_patch(smile)
 
-# --- WYŚWIETLANIE W STREAMLIT ---
-# To jest kluczowa zmiana względem zwykłego Pythona/Colab
+# --- RYSOWANIE ŚNIEGU (Dynamiczne) ---
+# Wywołujemy funkcję na samym końcu, żeby śnieg był "na wierzchu" (zorder=20)
+draw_snow(ax, snow_count)
+
+# --- WYŚWIETLENIE ---
 st.pyplot(fig)
