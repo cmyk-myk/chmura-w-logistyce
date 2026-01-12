@@ -1,0 +1,83 @@
+import streamlit as st
+from supabase import create_client, Client
+
+# --- KONFIGURACJA ---
+# Aplikacja pobiera dane z bezpiecznego schowka (Secrets) w Streamlit Cloud
+try:
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+except FileNotFoundError:
+    st.error("Błąd: Nie znaleziono kluczy API. Skonfiguruj 'Secrets' w panelu Streamlit.")
+    st.stop()
+
+# Połączenie z bazą (z cache, żeby nie łączyć się przy każdym kliknięciu)
+@st.cache_resource
+def init_connection():
+    return create_client(url, key)
+
+supabase = init_connection()
+
+# --- FUNKCJE ---
+def pobierz_liste():
+    # Pobiera wszystkie wiersze z tabeli 'magazyn'
+    response = supabase.table('magazyn').select("nazwa").execute()
+    return [row['nazwa'] for row in response.data]
+
+def dodaj_towar(nazwa):
+    supabase.table('magazyn').insert({"nazwa": nazwa}).execute()
+
+def usun_towar(nazwa):
+    # Znajdujemy ID jednego z wierszy o tej nazwie (limit=1)
+    response = supabase.table('magazyn').select("id").eq("nazwa", nazwa).limit(1).execute()
+    if response.data:
+        id_do_usuniecia = response.data[0]['id']
+        supabase.table('magazyn').delete().eq("id", id_do_usuniecia).execute()
+        return True
+    return False
+
+# --- INTERFEJS (STRONA WWW) ---
+st.title("📦 Magazyn w Chmurze")
+
+# Menu boczne
+menu = st.sidebar.radio("Nawigacja", ["Stan Magazynu", "Dostawa (+)", "Wydanie (-)"])
+
+if menu == "Stan Magazynu":
+    st.header("Aktualny stan")
+    towary = pobierz_liste()
+    
+    if towary:
+        st.info(f"Razem sztuk w magazynie: {len(towary)}")
+        
+        # Tabela zliczeń
+        unikalne = list(set(towary))
+        dane = [{"Towar": t, "Sztuk": towary.count(t)} for t in unikalne]
+        st.dataframe(dane, use_container_width=True)
+    else:
+        st.warning("Magazyn jest pusty.")
+
+elif menu == "Dostawa (+)":
+    st.header("Przyjęcie towaru")
+    nowy = st.text_input("Nazwa towaru")
+    if st.button("Dodaj"):
+        if nowy:
+            dodaj_towar(nowy)
+            st.success(f"Dodano: {nowy}")
+            st.rerun() # Odśwież stronę
+        else:
+            st.error("Wpisz nazwę!")
+
+elif menu == "Wydanie (-)":
+    st.header("Wydanie towaru")
+    towary = pobierz_liste()
+    unikalne_towary = sorted(list(set(towary)))
+    
+    if unikalne_towary:
+        wybor = st.selectbox("Wybierz towar do usunięcia", unikalne_towary)
+        if st.button("Wydaj ze stanu"):
+            if usun_towar(wybor):
+                st.success(f"Wydano: {wybor}")
+                st.rerun()
+            else:
+                st.error("Błąd bazy danych.")
+    else:
+        st.warning("Brak towarów do wydania.")
